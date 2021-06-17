@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  postgres:
+    build: db-service
+    volumes:
+        - db-storage:/var/lib/postgresql/data/
+    environment:
+        - PGDATA=/var/lib/postgresql/data/db-data
+        - POSTGRES_USER_FILE=/run/secrets/postgres-user
+        - POSTGRES_PASSWORD_FILE=/run/secrets/postgres-password
+    ports:
+      - 5432:5432
+    secrets:
+      - postgres-user
+      - postgres-password
+
+  backup:
+    build: backup-service
+    volumes:
+      - db-backup:/opt/backups
+    environment:
+      - BACKUP_DIR=/opt/backups
+      - PGHOST=postgres
+      - PGPORT=5432
+      - PGPASSFILE=/.pgpass
+    secrets:
+      - postgres-user
+      - postgres-password
+      - rclone-config
+
+volumes:
+  db-backup:
+  db-storage:
+
+secrets:
+  rclone-config:
+    file: secrets/rclone.conf
+  postgres-user:
+    file: secrets/postgres-user.secret
+  postgres-password:
+    file: secrets/postgres-password.secret
