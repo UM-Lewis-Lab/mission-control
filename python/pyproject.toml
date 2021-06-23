@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "mission-control"
+version = "0.1.0"
+description = "Data management for Lewis Lab at the University of Michigan"
+authors = ["Logan Walls <2934282+LoganWalls@users.noreply.github.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+psycopg2 = "^2.9.1"
+peewee = "^3.14.4"
+
+[tool.poetry.dev-dependencies]
+black = "^21.6b0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
