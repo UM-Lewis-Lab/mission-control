@@ -59,4 +59,4 @@ class Log(BaseModel):
         table_name = "logs"
 
 
-ALL_TABLES = [Project, Experiment, Run, Log]
+ALL_TABLES = BaseModel.__subclasses__()
