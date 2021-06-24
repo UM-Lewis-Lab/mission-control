@@ -1,2 +1,2 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE DATABASE IF NOT EXISTS "experiment_data";
+CREATE DATABASE "experiment_data";
