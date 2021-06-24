@@ -10,7 +10,7 @@ postgres_db = PostgresqlExtDatabase(None)
 
 class BaseModel(Model):
     uid = UUIDField(primary_key=True, default=uuid4, index=True, null=False)
-    created_at = DateTimeField(constraints=[SQL("DEFAULT CURRENT_TIMESTAMP")])
+    created_at = DateTimeField(null=True, constraints=[SQL("DEFAULT CURRENT_TIMESTAMP")])
 
     class Meta:
         database = postgres_db
