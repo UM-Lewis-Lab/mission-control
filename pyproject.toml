@@ -1,8 +1,11 @@
 [tool.poetry]
 name = "mission-control"
 version = "0.1.0"
-description = "Data management for Lewis Lab at the University of Michigan"
+description = "Data management for Lewis Lab at the University of Michigan."
 authors = ["Logan Walls <2934282+LoganWalls@users.noreply.github.com>"]
+packages = [
+    { include = "mission_control", from = "python/mission_control" },
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
