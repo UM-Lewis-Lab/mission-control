@@ -4,13 +4,16 @@ version = "0.1.0"
 description = "Data management for Lewis Lab at the University of Michigan."
 authors = ["Logan Walls <2934282+LoganWalls@users.noreply.github.com>"]
 packages = [
-    { include = "mission_control", from = "python/mission_control" },
+    { include = "mission_control", from = "python" },
 ]
 
 [tool.poetry.dependencies]
 python = "^3.8"
 psycopg2 = "^2.9.1"
 peewee = "^3.14.4"
+google-api-python-client = "^2.12.0"
+google-auth-httplib2 = "^0.1.0"
+google-auth-oauthlib = "^0.4.4"
 
 [tool.poetry.dev-dependencies]
 black = "^21.6b0"

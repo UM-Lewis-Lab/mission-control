@@ -1,7 +1,7 @@
-from typing import Generator, Tuple
+from typing import Tuple, Iterator
 from uuid import uuid4
 
-from peewee import ForeignKeyField, Model, CharField, SQL, UUIDField, BlobField
+from peewee import ForeignKeyField, Model, CharField, SQL, UUIDField
 from playhouse.fields import PickleField
 from playhouse.postgres_ext import BinaryJSONField, DateTimeField, PostgresqlExtDatabase
 
@@ -64,8 +64,8 @@ class Run(BaseModel):
 
     class Meta:
         table_name = "runs"
-    
-    def log_stream(self) -> Generator[dict]:
+
+    def log_stream(self) -> Iterator[dict]:
         return (l.log_data for l in self.logs)
 
     def write_log(self, **kwargs) -> "Log":
@@ -79,7 +79,6 @@ class Log(BaseModel):
     )
     log_data = BinaryJSONField(null=False, default=dict)
     binary_data = PickleField(null=True)
-
 
     class Meta:
         table_name = "logs"
