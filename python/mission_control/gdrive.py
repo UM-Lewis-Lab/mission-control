@@ -1,6 +1,4 @@
-from typing import Union
 import os
-import re
 from pathlib import Path
 
 from googleapiclient.discovery import build, Resource as GoogleResource
