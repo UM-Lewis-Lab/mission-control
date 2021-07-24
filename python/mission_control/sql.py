@@ -20,7 +20,6 @@ def connect(
     user: str = None,
     password: str = None,
 ) -> PostgresqlExtDatabase:
-    postgres_db
     postgres_db.init(
         database or PG_DATABASE,
         host=host or PG_HOST,
@@ -30,3 +29,25 @@ def connect(
     )
     postgres_db.create_tables(ALL_TABLES, safe=True)
     return postgres_db
+
+
+class SQLLogger:
+    def __init__(
+        self,
+        client: PostgresqlExtDatabase,
+        project_name: str,
+        project_metdata: dict,
+        experiment_name: str,
+        experiment_metadata: dict,
+        run_name: str,
+        run_metadata: dict,
+    ):
+        self.client = client
+        self.project: Project = Project.get_or_create(
+            name=project_name, metadata=project_metdata
+        )
+        self.experiment: Experiment = self.project.get_experiment(
+            name=experiment_name, metadata=experiment_metadata
+        )
+        self.run: Run = self.experiment.get_run(name=run_name, metadata=run_metadata)
+
