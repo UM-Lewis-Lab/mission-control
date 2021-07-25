@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Data management for Lewis Lab at the University of Michigan."
 authors = ["Logan Walls <2934282+LoganWalls@users.noreply.github.com>"]
 packages = [
-    { include = "src" },
+    { include = "mission_control", from = "src" },
 ]
 
 [tool.poetry.dependencies]

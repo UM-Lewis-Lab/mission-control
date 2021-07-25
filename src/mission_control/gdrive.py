@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Optional
 
 from googleapiclient.discovery import build, Resource as GoogleResource
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
@@ -63,22 +64,27 @@ class GDriveClient:
             )
         return None
 
-    def create_folder(self, name: str) -> str:
+    def create_folder(self, name: str, parent_id: Optional[str] = None) -> str:
         """Creates a folder with `name` and returns its ID."""
         file_metadata = {"name": name, "mimeType": "application/vnd.google-apps.folder"}
         file = self.service.files().create(body=file_metadata, fields="id").execute()
         return file.get("id")
 
-    def get_folder(self, name: str, create=True) -> str:
+    def get_folder(
+        self, name: str, parent_id: Optional[str] = None, create=True
+    ) -> str:
         """Returns the ID of the folder with `name`."""
+        query = f"name = '{name}' and mimeType = 'application/vnd.google-apps.folder'"
+        if parent_id is not None:
+            query += f" and '{parent_id}' in parents"
         search_result = self.find(
-            f"name = '{name}' and mimeType = 'application/vnd.google-apps.folder'",
+            query,
             fail_if_missing=False,
         )
         if search_result is not None:
             return search_result.get("id")
         elif create:
-            return self.create_folder(name)
+            return self.create_folder(name, parent_id=parent_id)
         else:
             raise FileNotFoundError(f"Folder: '{name}' not found")
 
