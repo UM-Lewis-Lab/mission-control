@@ -1,24 +1,27 @@
-import pickle
+from pathlib import Path
+from random import random
+from mission_control import MissionControl
 
-import mission_control
 
-
-mission_control.connect()
-
-project, _ = mission_control.Project.get_or_create(
-    name="test-project",
-    metadata={
-        "test1": "hi",
-        "test2": [{"nested1": "a", "nested2": ["b", "c"]}, {"nested1": "d"}],
-    },
+mc = MissionControl(
+    "test-project",
+    "test-experiment",
+    "test-run",
+    Path("~/Downloads/mc-root"),
+    ["step", "loss"],
+    project_metadata={"test": "project", "hi": "wow", "hello": ["hi"]},
+    experiment_metadata={"test": "experiment"},
+    run_metadata={"test": "run"},
+    backup_logs=True,
+    backup_artifacts=True,
+    overwrite=True,
 )
 
-experiment = project.get_experiment(name="Test experiment", metadata={"foo": "bar"})
+for i in range(12):
+    mc.save_log(step=i, loss=random())
 
-for i in range(2):
-    run = experiment.get_run(name=f"run{i}", metadata={"seed": i})
-    for j in range(10):
-        run.write_log(
-            log_data={"step": j, "loss": (i + 1) * j},
-            binary_data=pickle.dumps(["hi", 1, 7, {"wow": "hello"}]),
-        )
+mc.save_artifact({"hello": "world!"}, "test-artifact", {"some-test": "metadata"})
+mc.save_artifact({"hello": "world!"}, "test-artifact", {"some-test": "metadata2"})
+mc.save_artifact({"hello": "world!"}, "test-artifact2", {"2some-test": "metadata"})
+
+mc.finish()

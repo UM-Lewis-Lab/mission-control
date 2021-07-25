@@ -1,4 +1,6 @@
 import os
+import sys
+import multiprocessing as mp
 from pathlib import Path
 from typing import Optional
 
@@ -7,6 +9,8 @@ from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+
+from .util import backup_timestamp
 
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 CREDENTIALS_PATH = (
@@ -22,8 +26,12 @@ TOKEN_PATH = (
 
 
 class GDriveClient:
-    def __init__(self, drive_service: GoogleResource):
+    def __init__(self, drive_service: GoogleResource, root_folder_name: str):
         self.service = drive_service
+        self.root_folder = (
+            None  # `self.get_folder()` assumes `self.root_folder` is defined
+        )
+        self.root_folder = self.get_folder(root_folder_name)
 
     def search(self, query: str):
         """Returns a list of files and/or folders matching `query`.
@@ -64,29 +72,43 @@ class GDriveClient:
             )
         return None
 
+    def rename(self, item_id: str, new_name: str):
+        self.service.files().update(fileId=item_id, body=dict(name=new_name)).execute()
+
     def create_folder(self, name: str, parent_id: Optional[str] = None) -> str:
         """Creates a folder with `name` and returns its ID."""
-        file_metadata = {"name": name, "mimeType": "application/vnd.google-apps.folder"}
+        file_metadata = dict(
+            name=name,
+            mimeType="application/vnd.google-apps.folder",
+        )
+        parent_id = parent_id or self.root_folder
+        if parent_id:
+            file_metadata.update(parents=[parent_id])
         file = self.service.files().create(body=file_metadata, fields="id").execute()
         return file.get("id")
 
     def get_folder(
-        self, name: str, parent_id: Optional[str] = None, create=True
-    ) -> str:
+        self,
+        name: str,
+        parent_id: Optional[str] = None,
+        create=True,
+        fail_if_missing=False,
+    ) -> Optional[str]:
         """Returns the ID of the folder with `name`."""
-        query = f"name = '{name}' and mimeType = 'application/vnd.google-apps.folder'"
+        query = f"name = '{name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        parent_id = parent_id or self.root_folder
         if parent_id is not None:
             query += f" and '{parent_id}' in parents"
         search_result = self.find(
             query,
-            fail_if_missing=False,
+            fail_if_missing=fail_if_missing,
         )
         if search_result is not None:
             return search_result.get("id")
         elif create:
             return self.create_folder(name, parent_id=parent_id)
         else:
-            raise FileNotFoundError(f"Folder: '{name}' not found")
+            return None
 
     def upload(
         self,
@@ -95,25 +117,29 @@ class GDriveClient:
         folder_name=None,
         folder_id=None,
         mime_type="application/octet-stream",
+        replace=False,
     ) -> str:
         """Upload a file from `local_path` to GDrive with `name` and return its ID.
         If `folder_id` or `folder_name` is specified, the file will be uploaded inside that folder."""
-        file_metadata = {"name": name}
         if folder_name and not folder_id:
             folder_id = self.get_folder(folder_name)
+        if not folder_id:
+            folder_id = self.root_folder
 
-        query = f"name = '{name}' and mimeType != 'application/vnd.google-apps.folder' and trashed = false"
-        if folder_id:
-            file_metadata["parents"] = [folder_id]
-            query += f" and '{folder_id}' in parents"
+        query = f"name = '{name}' and mimeType != 'application/vnd.google-apps.folder'"
+        query += f" and trashed = false and '{folder_id}' in parents"
 
         # Check if the file already exists
-        if self.find(query, fail_if_missing=False) is not None:
-            message = f"File with name '{name}' already exists"
-            if folder_id:
-                message += f"in folder '{folder_id}'"
-            raise FileExistsError(message)
+        existing_file = self.find(query, fail_if_missing=False)
+        if existing_file is not None:
+            existing_file = existing_file.get("id")
+            if replace:
+                self.service.files().delete(fileId=existing_file).execute()
+            else:
+                self.rename(existing_file, f"{name}-{backup_timestamp()}")
 
+        # Upload the new file.
+        file_metadata = dict(name=name, parents=[folder_id])
         media = MediaFileUpload(
             str(local_path.expanduser().resolve()), mimetype=mime_type
         )
@@ -158,6 +184,8 @@ def load_credentials(credentials_path: Path, token_path: Path):
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
+            if not credentials_path.parent.exists():
+                credentials_path.parent.mkdir(parents=True)
             creds = authenticate(
                 credentials_path=credentials_path, token_path=token_path
             )
@@ -165,9 +193,71 @@ def load_credentials(credentials_path: Path, token_path: Path):
 
 
 def connect(
-    credentials_path: Path = CREDENTIALS_PATH, token_path: Path = TOKEN_PATH
+    credentials_path: Path = CREDENTIALS_PATH,
+    token_path: Path = TOKEN_PATH,
+    root_folder_name: str = "mission-control",
 ) -> GDriveClient:
     service = build(
         "drive", "v3", credentials=load_credentials(credentials_path, token_path)
     )
-    return GDriveClient(service)
+    return GDriveClient(service, root_folder_name=root_folder_name)
+
+
+def backup_handler(q: mp.Queue, root_folder_name: str):
+    gdrive = connect(root_folder_name=root_folder_name)
+    data = q.get(block=True)
+    while data is not None:
+        gdrive.upload(**data)
+        data = q.get(block=True)
+
+
+class BackupService:
+    def __init__(
+        self,
+        gdrive: GDriveClient,
+        project_name: str,
+        experiment_name: str,
+        run_name: str,
+        overwrite=False,
+        root_folder_name: str = None,
+    ):
+        self.gdrive = gdrive
+        self.finished = False
+
+        self.project_folder = self.gdrive.get_folder(project_name)
+        self.experiment_folder = self.gdrive.get_folder(
+            experiment_name, parent_id=self.project_folder
+        )
+        if not overwrite:
+            # Check if a run folder exists already and rename it.
+            existing_run_folder = self.gdrive.get_folder(
+                run_name, parent_id=self.experiment_folder, create=False
+            )
+            if existing_run_folder:
+                self.gdrive.rename(
+                    existing_run_folder, f"{run_name}-{backup_timestamp()}"
+                )
+
+        self.run_folder = self.gdrive.get_folder(
+            run_name, parent_id=self.experiment_folder
+        )
+        self.artifact_folder = self.gdrive.get_folder(
+            "artifacts", parent_id=self.run_folder
+        )
+
+        self.queue = mp.Queue()
+        self.process = mp.Process(
+            target=backup_handler, args=(self.queue, root_folder_name)
+        )
+        self.process.start()
+
+    def backup(self, data: dict):
+        self.queue.put(data)
+
+    def finish(self):
+        if not self.finished:
+            self.queue.put(None)
+            self.queue.close()
+            self.process.join()
+            self.process.close()
+            self.finished = True
