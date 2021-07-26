@@ -16,8 +16,8 @@ class CSVLogger:
             )
         self.fields.append(self.timestamp_fieldname)
 
-        self._file: TextIO = self.path.open("w")
-        self.writer = csv.DictWriter(self._file, self.fields)
+        self.file: TextIO = self.path.open("w")
+        self.writer = csv.DictWriter(self.file, self.fields)
         self.writer.writeheader()
 
     def write(self, **fields):
@@ -25,4 +25,4 @@ class CSVLogger:
         self.writer.writerow(fields)
 
     def __delete__(self):
-        self._file.close()
+        self.file.close()

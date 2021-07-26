@@ -1,5 +1,4 @@
 import os
-import sys
 import multiprocessing as mp
 from pathlib import Path
 from typing import Optional
@@ -251,13 +250,33 @@ class BackupService:
         )
         self.process.start()
 
+        # Use a separate log queue to ensure the logs
+        # are backed up even when large files are being
+        # backed up using the main queue.
+        self.log_queue = mp.Queue()
+        self.log_process = mp.Process(
+            target=backup_handler, args=(self.log_queue, root_folder_name)
+        )
+        self.log_process.start()
+
     def backup(self, data: dict):
         self.queue.put(data)
+
+    def backup_log(self, data: dict):
+        self.log_queue.put(data)
 
     def finish(self):
         if not self.finished:
             self.queue.put(None)
+            self.log_queue.put(None)
+
             self.queue.close()
+            self.log_queue.close()
+
             self.process.join()
+            self.log_process.join()
+
             self.process.close()
+            self.log_process.close()
+
             self.finished = True

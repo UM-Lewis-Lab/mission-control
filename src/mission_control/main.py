@@ -1,3 +1,4 @@
+import os
 import logging
 import json
 import pickle
@@ -114,25 +115,10 @@ class MissionControl:
 
         sys.excepthook = hook
 
-    def finish(self):
-        if self.backup_service is not None:
-            # Ensure that all logs are backed up to gdrive
-            if self.backup_logs and self.logs_since_backup > 0:
-                self.backup_service.backup(
-                    dict(
-                        local_path=self.log_path,
-                        name=self.log_path.name,
-                        folder_id=self.backup_service.run_folder,
-                        replace=True,
-                    )
-                )
-            self.backup_service.finish()
-
-    def save_log(self, **kwargs):
-        self.logger.write(**kwargs)
-        self.logs_since_backup += 1
-        if self.backup_logs and self.logs_since_backup >= self.log_backup_freq:
-            self.backup_service.backup(
+    def _do_log_backup(self, backup_freq: int):
+        if self.backup_logs and self.logs_since_backup >= backup_freq:
+            self.logger.file.flush()  # Flush before backing up so the backup service can see the file content.
+            self.backup_service.backup_log(
                 dict(
                     local_path=self.log_path,
                     name=self.log_path.name,
@@ -141,6 +127,18 @@ class MissionControl:
                 )
             )
             self.logs_since_backup = 0
+
+    def finish(self):
+        if self.backup_service is not None:
+            # Ensure that all logs are backed up to gdrive
+            os.fsync(self.logger.file)
+            self._do_log_backup(0)
+            self.backup_service.finish()
+
+    def save_log(self, **kwargs):
+        self.logger.write(**kwargs)
+        self.logs_since_backup += 1
+        self._do_log_backup(self.log_backup_freq)
 
     def save_artifact(self, obj: Any, name: str, metadata: dict = None):
         metadata = metadata or {}
