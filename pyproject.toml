@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mission-control"
-version = "0.1.0"
+version = "0.2.0"
 description = "Data management for Lewis Lab at the University of Michigan."
 authors = ["Logan Walls <2934282+LoganWalls@users.noreply.github.com>"]
 packages = [
