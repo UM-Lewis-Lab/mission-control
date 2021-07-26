@@ -89,6 +89,11 @@ class MissionControl:
                 path.mkdir(parents=True)
 
             if meta:
+                if "mc_level" in meta:
+                    raise ValueError(
+                        "'mc_level' is a reserved keyword, please use a different key in your metadata."
+                    )
+                meta["mc_level"] = level
                 write_path = path / "metadata.json"
                 if not self.overwrite:
                     backup_local_files(write_path)
